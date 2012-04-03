@@ -10,8 +10,8 @@
 //	package main
 //	
 //	import (
-//		"ddg"
 //		"fmt"
+//		"github.com/whee/ddg"
 //		"os"
 //	)
 //
