@@ -13,9 +13,28 @@ func TestZeroClick(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	verifyDDG(t, &res)
+}
 
+func TestClient(t *testing.T) {
+	c := &Client{}
+	res, err := c.ZeroClick("DuckDuckGo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifyDDG(t, &res)
+
+	c = &Client{Secure: true}
+	res, err = c.ZeroClick("DuckDuckGo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifyDDG(t, &res)
+}
+
+func verifyDDG(t *testing.T, r *Response) {
 	expected := "DuckDuckGo is an Internet search engine."
-	if res.Abstract != expected {
-		t.Errorf("got %q, expected %q\n", res.Abstract, expected)
+	if r.Abstract != expected {
+		t.Errorf("got %q, expected %q\n", r.Abstract, expected)
 	}
 }

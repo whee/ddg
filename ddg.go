@@ -83,9 +83,15 @@ const (
 	None           = ""
 )
 
+// A Client is a DDG Zero-click client.
+type Client struct {
+	// Secure specifies whether HTTPS is used.
+	Secure bool
+}
+
 // ZeroClick queries DuckDuckGo's zero-click API for the specified query
 // and returns the Response.
-func ZeroClick(query string) (res Response, err error) {
+func (c *Client) ZeroClick(query string) (res Response, err error) {
 	// TODO: Support some of the available configuration (e.g., no html)
 	v := url.Values{}
 	v.Set("q", query)
@@ -93,7 +99,14 @@ func ZeroClick(query string) (res Response, err error) {
 	// TODO: support the disambiguation category type
 	v.Set("skip_disambig", "1")
 
-	req, err := http.NewRequest("GET", "https://api.duckduckgo.com/?" + v.Encode(), nil)
+	var scheme string
+	if c.Secure {
+		scheme = "https"
+	} else {
+		scheme = "http"
+	}
+
+	req, err := http.NewRequest("GET", scheme+"://api.duckduckgo.com/?"+v.Encode(), nil)
 	if err != nil {
 		return
 	}
@@ -106,11 +119,17 @@ func ZeroClick(query string) (res Response, err error) {
 	}
 	defer resp.Body.Close()
 
-	jsonDec := json.NewDecoder(resp.Body)
-	err = jsonDec.Decode(&res)
+	err = json.NewDecoder(resp.Body).Decode(&res)
 	if err == io.EOF {
 		err = nil
 	}
 
 	return
+}
+
+// ZeroClick queries DuckDuckGo's zero-click API for the specified query
+// and returns the Response. This helper function uses a zero-value Client.
+func ZeroClick(query string) (res Response, err error) {
+	c := &Client{}
+	return c.ZeroClick(query)
 }
