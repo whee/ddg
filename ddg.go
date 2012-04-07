@@ -68,8 +68,12 @@ type Result struct {
 
 type Icon struct {
 	URL    string      // URL of icon
-	Height interface{} // height of icon (px)
-	Width  interface{} // width of icon (px)
+	Height int        `json:"-"` // height of icon (px)
+	Width  int        `json:"-"` // width of icon (px)
+
+	// The height and width can be "" (string; we treat as 0) or an int. Unmarshal here, then populate the above two.
+	RawHeight interface{} `json:"Height"`
+	RawWidth interface{} `json:"Width"`
 }
 
 type CategoryType string
@@ -123,8 +127,22 @@ func (c *Client) ZeroClick(query string) (res Response, err error) {
 	if err == io.EOF {
 		err = nil
 	}
+	handleInterfaces(&res)
 
 	return
+}
+
+// handleInterfaces cleans up incoming data that can be of multiple types; for example, the
+// icon width and height are either a float64 or string, but we want to treat them as int.
+func handleInterfaces(response *Response) {
+	for _, result := range response.Results {
+		if height, ok := result.Icon.RawHeight.(float64); ok {
+			result.Icon.Height = int(height)
+		}
+		if width, ok := result.Icon.RawWidth.(float64); ok {
+			result.Icon.Width = int(width)
+		}
+	}
 }
 
 // ZeroClick queries DuckDuckGo's zero-click API for the specified query
