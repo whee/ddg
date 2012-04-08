@@ -27,8 +27,8 @@
 package ddg
 
 import (
+	"bytes"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/url"
 )
@@ -50,13 +50,20 @@ type Response struct {
 	DefinitionSource string // name of Definition source
 	DefinitionURL    string // deep link to expanded definition page in DefinitionSource
 
-	RelatedTopics []Result // array of internal links to related topics associated with Abstract
+	RelatedTopics         []Result         // array of internal links to related topics associated with Abstract
+	RelatedTopicsSections []SectionResults // disambiguation types will populate this
 
 	Results []Result // array of external links associated with Abstract
 
 	Type CategoryType // response category, i.e. A (article), D (disambiguation), C (category), N (name), E (exclusive), or nothing.
 
 	Redirect string // !bang redirect URL
+}
+
+// SectionResults are results grouped by a topic name.
+type SectionResults struct {
+	Name   string
+	Topics []Result
 }
 
 type Result struct {
@@ -67,13 +74,19 @@ type Result struct {
 }
 
 type Icon struct {
-	URL    string      // URL of icon
-	Height int        `json:"-"` // height of icon (px)
-	Width  int        `json:"-"` // width of icon (px)
+	URL    string // URL of icon
+	Height int    `json:"-"` // height of icon (px)
+	Width  int    `json:"-"` // width of icon (px)
 
 	// The height and width can be "" (string; we treat as 0) or an int. Unmarshal here, then populate the above two.
 	RawHeight interface{} `json:"Height"`
-	RawWidth interface{} `json:"Width"`
+	RawWidth  interface{} `json:"Width"`
+}
+
+// disambiguationResponse is used when Type is Disambiguation. RelatedTopics is a mix of types in this case --
+// this struct handles Results grouped by topic.
+type disambiguationResponse struct {
+	RelatedTopics []SectionResults
 }
 
 type CategoryType string
@@ -94,14 +107,19 @@ type Client struct {
 }
 
 // ZeroClick queries DuckDuckGo's zero-click API for the specified query
+// and returns the Response. This helper function uses a zero-value Client.
+func ZeroClick(query string) (res Response, err error) {
+	c := &Client{}
+	return c.ZeroClick(query)
+}
+
+// ZeroClick queries DuckDuckGo's zero-click API for the specified query
 // and returns the Response.
 func (c *Client) ZeroClick(query string) (res Response, err error) {
 	// TODO: Support some of the available configuration (e.g., no html)
 	v := url.Values{}
 	v.Set("q", query)
 	v.Set("format", "json")
-	// TODO: support the disambiguation category type
-	v.Set("skip_disambig", "1")
 
 	var scheme string
 	if c.Secure {
@@ -114,7 +132,7 @@ func (c *Client) ZeroClick(query string) (res Response, err error) {
 	if err != nil {
 		return
 	}
-	req.Header.Set("User-Agent", "ddg.go/0.1")
+	req.Header.Set("User-Agent", "ddg.go/0.5")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -123,11 +141,22 @@ func (c *Client) ZeroClick(query string) (res Response, err error) {
 	}
 	defer resp.Body.Close()
 
-	err = json.NewDecoder(resp.Body).Decode(&res)
-	if err == io.EOF {
-		err = nil
+	b := new(bytes.Buffer)
+	_, err = b.ReadFrom(resp.Body)
+	if err != nil {
+		return
 	}
+
+	err = json.Unmarshal(b.Bytes(), &res)
+	if err != nil {
+		return
+	}
+
 	handleInterfaces(&res)
+
+	if res.Type == Disambiguation {
+		handleDisambiguation(&res, b.Bytes())
+	}
 
 	return
 }
@@ -145,9 +174,22 @@ func handleInterfaces(response *Response) {
 	}
 }
 
-// ZeroClick queries DuckDuckGo's zero-click API for the specified query
-// and returns the Response. This helper function uses a zero-value Client.
-func ZeroClick(query string) (res Response, err error) {
-	c := &Client{}
-	return c.ZeroClick(query)
+// handleDisambiguation performs a second pass on the response to populate RelatedTopics and
+// RelatedTopicsSections properly.
+func handleDisambiguation(response *Response, data []byte) {
+	// First, clean up RelatedTopics. The grouped topic results ended up as zero-valued Results,
+	// and those are useless.
+	var cleanRelated []Result
+	for _, r := range response.RelatedTopics {
+		if r.Result != "" {
+			cleanRelated = append(cleanRelated, r)
+		}
+	}
+	response.RelatedTopics = cleanRelated
+
+	// We could handle this like handleInterfaces, but json's Unmarshal will do the work for us.
+	dResponse := &disambiguationResponse{}
+	if err := json.Unmarshal(data, dResponse); err == nil {
+		response.RelatedTopicsSections = dResponse.RelatedTopics
+	}
 }
