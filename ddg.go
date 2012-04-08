@@ -190,6 +190,10 @@ func handleDisambiguation(response *Response, data []byte) {
 	// We could handle this like handleInterfaces, but json's Unmarshal will do the work for us.
 	dResponse := &disambiguationResponse{}
 	if err := json.Unmarshal(data, dResponse); err == nil {
-		response.RelatedTopicsSections = dResponse.RelatedTopics
+		for _, r := range dResponse.RelatedTopics {
+			if r.Name != "" {
+				response.RelatedTopicsSections = append(response.RelatedTopicsSections, r)
+			}
+		}
 	}
 }
