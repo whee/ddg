@@ -104,6 +104,12 @@ const (
 type Client struct {
 	// Secure specifies whether HTTPS is used.
 	Secure bool
+	// NoHtml will remove HTML from the response text
+	NoHtml bool
+	// SkipDisambiguation will prevent Disambiguation type responses
+	SkipDisambiguation bool
+	// NoRedirect skips HTTP redirects (for !bang commands)
+	NoRedirect bool
 }
 
 // ZeroClick queries DuckDuckGo's zero-click API for the specified query
@@ -116,10 +122,19 @@ func ZeroClick(query string) (res Response, err error) {
 // ZeroClick queries DuckDuckGo's zero-click API for the specified query
 // and returns the Response.
 func (c *Client) ZeroClick(query string) (res Response, err error) {
-	// TODO: Support some of the available configuration (e.g., no html)
 	v := url.Values{}
 	v.Set("q", query)
 	v.Set("format", "json")
+
+	if c.NoHtml {
+		v.Set("no_html", "1")
+	}
+	if c.SkipDisambiguation {
+		v.Set("skip_disambig", "1")
+	}
+	if c.NoRedirect {
+		v.Set("no_redirect", "1")
+	}
 
 	var scheme string
 	if c.Secure {
