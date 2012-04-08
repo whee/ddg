@@ -31,6 +31,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"reflect"
 )
 
 // Response represents the response from a zero-click API request via
@@ -105,11 +106,11 @@ type Client struct {
 	// Secure specifies whether HTTPS is used.
 	Secure bool
 	// NoHtml will remove HTML from the response text
-	NoHtml bool
+	NoHtml bool `parameter:"no_html"`
 	// SkipDisambiguation will prevent Disambiguation type responses
-	SkipDisambiguation bool
+	SkipDisambiguation bool `parameter:"skip_disambig"`
 	// NoRedirect skips HTTP redirects (for !bang commands)
-	NoRedirect bool
+	NoRedirect bool `parameter:"no_redirect"`
 }
 
 // ZeroClick queries DuckDuckGo's zero-click API for the specified query
@@ -126,14 +127,14 @@ func (c *Client) ZeroClick(query string) (res Response, err error) {
 	v.Set("q", query)
 	v.Set("format", "json")
 
-	if c.NoHtml {
-		v.Set("no_html", "1")
-	}
-	if c.SkipDisambiguation {
-		v.Set("skip_disambig", "1")
-	}
-	if c.NoRedirect {
-		v.Set("no_redirect", "1")
+	cE := reflect.ValueOf(c).Elem()
+	typeOfC := cE.Type()
+	for i := 0; i < cE.NumField(); i++ {
+		if tag := typeOfC.Field(i).Tag; tag != "" {
+			if cE.Field(i).Interface().(bool) {
+				v.Set(typeOfC.Field(i).Tag.Get("parameter"), "1")
+			}
+		}
 	}
 
 	var scheme string
@@ -147,7 +148,7 @@ func (c *Client) ZeroClick(query string) (res Response, err error) {
 	if err != nil {
 		return
 	}
-	req.Header.Set("User-Agent", "ddg.go/0.5")
+	req.Header.Set("User-Agent", "ddg.go/0.7")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
