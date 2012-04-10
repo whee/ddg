@@ -111,6 +111,9 @@ type Client struct {
 	SkipDisambiguation bool `parameter:"skip_disambig"`
 	// NoRedirect skips HTTP redirects (for !bang commands)
 	NoRedirect bool `parameter:"no_redirect"`
+	// BaseURL specifies where to send API requests. If zero-value,
+	// "api.duckduckgo.com" is used.
+	BaseURL string
 }
 
 // ZeroClick queries DuckDuckGo's zero-click API for the specified query
@@ -144,7 +147,11 @@ func (c *Client) ZeroClick(query string) (res Response, err error) {
 		scheme = "http"
 	}
 
-	req, err := http.NewRequest("GET", scheme+"://api.duckduckgo.com/?"+v.Encode(), nil)
+	if c.BaseURL == "" {
+		c.BaseURL = "api.duckduckgo.com"
+	}
+
+	req, err := http.NewRequest("GET", scheme+"://"+c.BaseURL+"/?"+v.Encode(), nil)
 	if err != nil {
 		return
 	}
